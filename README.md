@@ -61,9 +61,9 @@ Analysis of public employee compensation data from Montgomery County Government 
 ## How to Run
 
 1. Download the Montgomery County Employee Salary datasets (2019–2024) from [Data.gov](https://catalog.data.gov/dataset/employee-salaries-2024)
-2. Run `ALY6040_Project_EDA.Rmd` first — this generates the cleaned file `Employee_Salaries_2019_to_2024.csv`
-3. Run `Module_3_Technique_Practice.Rmd` for clustering analysis
-4. Run `Module_4_Technique_Practice.Rmd` for SVM analysis
+2. Run `exploratory_data_analysis.Rmd` first — this generates the cleaned file `Employee_Salaries_2019_to_2024.csv`
+3. Run `kmeans_clustering.Rmd` for clustering analysis
+4. Run `svm_analysis.Rmd` for SVM analysis
 
 > All `.Rmd` files can be knitted in RStudio to produce a formatted report.
 
