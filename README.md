@@ -18,14 +18,14 @@ Analysis of public employee compensation data from Montgomery County Government 
 
 ## My Contributions
 
-### 1. Exploratory Data Analysis (`exploratory_data_analysis.Rmd`)
+### 1. Exploratory Data Analysis (`ALY6040_Project_EDA.Rmd`)
 - Removed 3,636 duplicate records and handled missing values
 - Conducted outlier detection using boxplots for Base Salary by Gender
 - Analyzed salary distributions across 44 departments
 - Produced five-number summaries and IQR-based outlier bounds for top departments (POL, HHS, FRS, DOT)
 - Built correlation matrix using `corrplot` for numeric salary components
 
-### 2. K-Means Clustering (`kmeans_clustering.Rmd`)
+### 2. K-Means Clustering (`Module_3_Technique_Practice.Rmd`)
 - Filtered data to 2024 to avoid year-on-year salary drift
 - Standardized numeric features (Base Salary, Overtime Pay, Longevity Pay) using z-scores
 - Applied Elbow Method via `fviz_nbclust()` to determine optimal k = 4
@@ -33,7 +33,7 @@ Analysis of public employee compensation data from Montgomery County Government 
 - Profiled 4 clusters by mean/median salary — from entry-level (Cluster 2) to senior/executive (Cluster 1)
 - Validated cluster separation using **Kruskal-Wallis test** (p < 0.05) and pairwise **Wilcoxon rank-sum tests**
 
-### 3. SVM Analysis — Gender & Salary (`svm_analysis.Rmd`)
+### 3. SVM Analysis — Gender & Salary (`Module_4_Technique_Practice.Rmd`)
 - Converted Base Salary into Low / Medium / High tiers using tertiles
 - Built SVM classifier (RBF kernel) on 70/30 stratified split to predict salary level
 - Compared models with and without Gender — removing Gender did not affect accuracy
@@ -58,12 +58,24 @@ Analysis of public employee compensation data from Montgomery County Government 
 
 ---
 
+## View Rendered Outputs
+
+Click the links below to view the fully rendered reports with all plots, tables, and results:
+
+| File | Preview |
+|---|---|
+| Exploratory Data Analysis | [View](https://htmlpreview.github.io/?https://github.com/ashnasolkar/workforce-compensation-trends/blob/main/exploratory_data_analysis.html) |
+| K-Means Clustering | [View](https://htmlpreview.github.io/?https://github.com/ashnasolkar/workforce-compensation-trends/blob/main/kmeans_clustering.html) |
+| SVM Analysis | [View](https://htmlpreview.github.io/?https://github.com/ashnasolkar/workforce-compensation-trends/blob/main/svm_analysis.html) |
+
+---
+
 ## How to Run
 
 1. Download the Montgomery County Employee Salary datasets (2019–2024) from [Data.gov](https://catalog.data.gov/dataset/employee-salaries-2024)
-2. Run `exploratory_data_analysis.Rmd` first — this generates the cleaned file `Employee_Salaries_2019_to_2024.csv`
-3. Run `kmeans_clustering.Rmd` for clustering analysis
-4. Run `svm_analysis.Rmd` for SVM analysis
+2. Run `ALY6040_Project_EDA.Rmd` first — this generates the cleaned file `Employee_Salaries_2019_to_2024.csv`
+3. Run `Module_3_Technique_Practice.Rmd` for clustering analysis
+4. Run `Module_4_Technique_Practice.Rmd` for SVM analysis
 
 > All `.Rmd` files can be knitted in RStudio to produce a formatted report.
 
