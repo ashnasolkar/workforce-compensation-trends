@@ -71,5 +71,8 @@ Analysis of public employee compensation data from Montgomery County Government 
 
 ## References
 
-- Montgomery County Government. (2025). Employee Salaries – 2024 [Dataset]. Data.gov. https://catalog.data.gov/dataset/employee-salaries-2024
-- Montgomery County Government. (2019–2023). Employee Salaries [Datasets]. Data.gov.
+- Montgomery County Government. (2025, April 8). Employee Salaries – 2024 [Dataset]. Data.gov. https://catalog.data.gov/dataset/employee-salaries-2024
+- Montgomery County Government. (2025). Employee Salaries – 2024: About the data. Montgomery County Open Data Portal. https://data.montgomerycountymd.gov/Human-Resources/Employee-Salaries-2024/2nq6-auk8/about_data
+- Montgomery County Government. (2006). Montgomery County Personnel Regulations (MCPR), Section 1A: Classification and Compensation. Montgomery County Government. https://www.montgomerycountymd.gov/HR/Resources/files/regulation/MCPR01AE.pdf
+- Montgomery County Government. (2024). Pay grade and salary distribution FY2024 (PMR 2024 v2). Montgomery County Government. https://www.montgomerycountymd.gov/HR/Resources/Files/Classification/Compensation%20Documents/FY25/PMR%202024%20v2%2005162024.pdf
+- Kabacoff, R. (2015). R in action: data analysis and graphics with R (Third edition.). Manning Publications.
