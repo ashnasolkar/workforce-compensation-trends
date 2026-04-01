@@ -1,0 +1,320 @@
+---
+title: "Module_4_Technique_Practice"
+author: "Ashna Solkar"
+date: "2025-05-04"
+output:
+  pdf_document:
+    toc: true
+  word_document:
+    toc: true
+---
+# 1. Introduction
+This report explores whether gender plays a significant role in determining employee salary levels across different departments and job grades. Using classification models such as Support Vector Machines (SVM) and exploratory techniques, the analysis investigates structural patterns in compensation data. The goal is to identify any potential disparities in how male and female employees are distributed across low, medium, and high salary levels, and whether these differences are influenced by factors like department or job grade.
+
+#### Business Objective
+
+To identify whether gender plays a significant role in determining salary levels across departments and grades
+
+```{r include=FALSE}
+# Environment Reset Code
+rm(list = ls())
+```
+# 2. Loading and Initial Data Wrangling
+## 2.1. Libraries Used
+```{r message=FALSE, warning=FALSE}
+library(readr)  # For parsing a flat file into a tibble
+library(dplyr)  # For data wrangling
+library(caret)  # For splitting the data
+library(e1071)  # To enable svm()
+```
+
+## 2.2. Loading Dataset
+```{r message=FALSE, warning=FALSE}
+data <- read_csv("Employee_Salaries_2019_to_2024.csv")
+str(data)
+```
+## 2.3. Converting Variables to Factor
+
+Converting some of these character (chr) and numeric (num) columns to factors using factor() so that R treats them correctly as categorical variables in the model.
+```{r}
+data <- data %>%
+  mutate(
+    Department = factor(Department),
+    Gender = factor(Gender),
+    Grade = factor(Grade),
+    Year = factor(Year)
+  )
+```
+
+## 2.4. Creating a New Variable called "Salary Level"
+
+The purpose of creating a new variable is to transform the continuous 'Base Salary' data into categorical classes (i.e.; "Low", "Medium", "High") so that Support Vector Machine (SVM) can be used for classification.
+
+```{r}
+summary(data$`Base Salary`)
+```
+
+Based on the spread of the data of the 'Base Salary' variable, we use tertiles to divide the data into three equal-frequency groups using the ntile() function. This ensures a balanced classification across all salary levels.
+
+- T1 (0–33.3%) is labeled as "Low"
+- T2 (33.3–66.6%) as "Medium"
+- T3 (66.6–100%) as "High"
+
+This method automatically classifies the salaries into equal-frequency groups.
+```{r}
+data <- data %>%
+  mutate(`Salary Level`= ntile(`Base Salary`,3)) %>%
+  mutate(`Salary Level` = factor(`Salary Level`, levels = 1:3,
+                                 labels = c("Low", "Medium", "High")))
+
+head(data)
+```
+# 3. Splitting the Data
+
+The dataset is split into 70% - 30% for training and testing the data using createDataPartition() from caret package.
+
+createDataPartition() performs stratified sampling. That is, it makes sure that the training and testing sets have a similar mix of salary levels — like the same balance of "Low", "Medium", and "High" salaries.
+
+```{r}
+set.seed(123) # For reproducibility
+trainIndex <- createDataPartition(data$`Salary Level`, p = 0.70, list = FALSE)
+# p = 0.7 gives you 70% training data
+# list = FALSE returns a plain vector of row indices. Makes it easier to split data using regular indexing.
+
+# Select rows for training data using the indices from createDataPartition()
+train <- data[trainIndex,]
+
+# Use the remaining rows (those not in training) as test data
+test <- data[-trainIndex,]
+```
+
+# 4. Building SVM Classification Model
+
+SVM classification model was built using svm() function from e1071 package. 'Salary Level' is the target variable and 'Department', 'Gender', 'Grade', and 'Year' in the dataset are predictors. Since 'Salary Level' is a factor, svm() automatically builds a classification model.
+The model is learning to classify the 'Salary Level' based on the variables - 'Department', 'Gender', 'Grade', and 'Year'.
+
+```{r}
+# Building the model on "train" Data
+model <- svm(`Salary Level` ~ Department + Gender + Grade + Year,
+             data = train)
+
+# Displays summary of the model
+summary(model)
+```
+
+A summary of the model is displayed using summary():
+
+- Call:svm(formula = `Salary Level` ~ Department + Gender + Grade + Year, data = train) - This tells which function was called. 
+- Parameters: - This section outlines the key configuration settings of SVM model.
+- SVM-Type: C-classification - This indicates we are performing classification using a method called C-Support Vector Classification, which is the standard SVM for classification tasks. “C” refers to the cost parameter that controls the trade-off between allowing training errors and forcing rigid margins.
+- SVM-Kernel: radial - The kernel function used is radial basis function (RBF). RBF is a popular choice because it can model non-linear relationships by mapping input features into a higher-dimensional space.
+- cost: 1 - This is the cost parameter (C) for the SVM model. A smaller value of C makes the margin more flexible, allowing for some misclassifications. A larger C will aim to classify all training examples correctly, potentially leading to overfitting.
+- Number of Support Vectors: 26755 - Support vectors are the key data points that lie closest to the decision boundary.
+The SVM algorithm defines the boundary using only these points.
+Out of 57075 observations in the dataset, 26755 were selected as support vectors, which influence the final model.
+- The distribution of support vectors across classes: (11330 7698 7727) indicates 11330 for Low, 7698 for Medium, 7727 for High
+- Number of classes: 3
+- Levels: Names of classes ('Salary Level')
+
+```{r}
+# Testing on "test" data
+pred <- predict(model, test)
+```
+
+Testing model on "test" data to evaluate how well it predicts on to new, unseen data.
+```{r}
+# Checking accuracy
+table(Predicted = pred, Actual = test$`Salary Level`)
+```
+
+The above command creates a confusion matrix, which compares:
+
+- Predicted = the Salary Levels predicted by SVM model
+- Actual = the Salary Levels actually observed in the test data
+
+#### Output Interpretation: 
+- Model was able to predict true positive values in majority, but false negatives and false positives exists too.
+- That is, when the Salary Level was actually Low, model correctly predicted for 3615 records, but incorrectly predicted as Medium for 1862 records and High for 230 records.
+- Similarly, when the Salary Level was actually Medium, model correctly predicted for 4175 records, but incorrectly predicted as Low for 368 records and High for 1164 records.
+- And, when the Salary Level was actually High, model correctly predicted for 4794 records, but incorrectly predicted as Low for 3 records and Medium for 910 records.
+
+```{r}
+# Using Decision Values
+
+deci <- predict(model, test, decision.values = TRUE)
+attr(deci, "decision.values")[1:10,] # Gets attributes of the object deci
+```
+Here, decision values are determined, which show how confident the SVM is about its predictions for a given employee, based on factors like Gender, Grade, Department, and Year. We're telling the SVM to not only predict class labels for the test data, but also to return the underlying decision values.
+These values represent the distance of each point from the decision boundaries that separate the classes.
+In a multi-class SVM (like this one with 3 levels), the model creates one decision function per pair of classes using the "one-vs-one" approach.
+
+attr() extracts the first 4 observations of decision values from the pred object.
+
+#### Output Interpretation:
+- The label Medium/High means: Medium is the first class, and High is the second class.
+- If the decision value is positive: The model is leaning toward the first class
+- If the decision value is negative: The model is leaning toward the second class.
+- The higher the absolute value, the stronger the confidence in that direction.
+
+- Each row = one observation in test data 
+- Each column = one pairwise class comparison
+
+#### Model Performance:
+The model produces strong positive values for the High/Low classifier and negative values for Medium/High, indicating that it confidently favors the High salary class over both Medium and Low. However, the Medium/Low decision values are relatively close to zero, suggesting that the model finds it more difficult to distinguish between Medium and Low salary levels — likely due to overlapping characteristics between employees in those tiers.
+
+```{r}
+# Using random sample data for visualization 
+set.seed(100)
+sample_rows <- sample(nrow(data), 1000)
+# Creating subset of data
+sample_data <- data[sample_rows, ]
+
+# Converting predictors to numeric  
+data_numeric <- sample_data %>%
+  select(Department, Gender, Grade, Year) %>%
+  mutate(across(everything(), ~ as.numeric(as.factor(.))))
+
+# Visualizing Classes by Color
+par(xpd = TRUE, mar = c(5, 4, 4, 8))  # Increasing right margin for legend placement
+plot(cmdscale(dist(data_numeric)),
+     col = as.integer(sample_data$`Salary Level`),
+     pch = ifelse(sample_rows %in% model$index, "+", "o"),
+     main = "SVM Visualization of Salary Level Classes For Random Sample")
+legend("topright", inset = c(-0.3, 0), legend = c("Low", "Medium", "High"),
+       col = 1:3, pch = 16, title = "Salary Level")
+
+```
+
+In the plot above, 
+
+- Circles (o) are normal observations.
+- Crosses (+) are support vectors — these are the critical observations the SVM uses to draw the decision boundary.
+
+#### Output Interpretation
+The SVM visualization shows significant overlap between Low, Medium, and High salary levels based on the current predictors. This suggests that employee salary levels cannot be easily separated using only Department, Gender, Grade, and Year. The high density of support vectors confirms that many observations lie near the classification boundary, making it difficult for the model to achieve high accuracy.
+
+```{r}
+# Visualizing Salary Levels by Gender
+ggplot(data, aes(x = `Salary Level`, fill = Gender)) +
+  geom_bar(position = "fill") +
+  labs(y = "Proportion", title = "Proportion of Salary Levels by Gender") +
+  theme_minimal()
+```
+
+```{r}
+# Proportion of employees in salary levels gender wise
+table(data$`Salary Level`, data$Gender)
+prop.table(table(data$`Salary Level`, data$Gender), margin = 1)
+```
+#### Observations:
+- As salary level increases, the proportion of female employees decreases, while male representation increases.
+- High salary tier is more male-dominated than Low and Medium.
+
+This trend suggests that gender may influence access to higher salary levels, even after accounting for departments and grades.
+
+## SVM Model without Gender
+Here, we are building SVM model without Gender predictor to check if accuracy of the model improves on dropping Gender variable.
+```{r}
+# Training on "train" data
+model_without_gender <- svm(`Salary Level` ~ Department + Grade + Year,
+             data = train)
+
+summary(model_without_gender)
+```
+
+```{r}
+# Testing on "test" data
+pred_withoutgender <- predict(model_without_gender, test)
+
+# Checking accuracy
+table(Predicted = pred_withoutgender, Actual = test$`Salary Level`)
+```
+#### Observation:
+The SVM model was able to classify salary levels just as well without using gender.
+So, gender does not add predictive value for the model, given the other features (Department, Grade, and Year)
+
+
+# 5. One-Class SVM Analysis of Gender Disparity in Salary Structure
+
+We modeled the salary structure for male employees using a one-class Support Vector Machine (SVM) to learn typical compensation patterns based on 'Base Salary', 'Grade', and 'Department'. This model was then applied to female employees to evaluate how many align with the learned male pattern. A significant number of females falling outside this structure may indicate potential disparities in pay structure or role allocation.
+
+```{r}
+# Fitting one-class SVM on male employees
+male_data <- data %>% filter(Gender == "M") %>%
+  select(`Base Salary`, Grade, Department) %>%
+  mutate(across(everything(), ~ as.numeric(as.factor(.))))
+
+svm_male <- svm(male_data, type = "one-classification", kernel = "radial")
+
+# Predict for females
+female_data <- data %>% filter(Gender == "F") %>%
+  select(`Base Salary`, Grade, Department) %>%
+  mutate(across(everything(), ~ as.numeric(as.factor(.))))
+
+pred_female <- predict(svm_male, female_data)
+table(pred_female)
+```
+
+#### Interpretation:
+When modeling salary patterns using only male employees, we found that over 70% of female employees fall outside that distribution. This could mean that women are systematically assigned to different roles or salary bands than men, reinforcing concerns about gender-based disparities in compensation structure.
+```{r}
+# Adding labels
+male_data_labeled <- male_data %>% mutate(Group = "Male")
+female_data_labeled <- female_data %>%
+  mutate(Group = ifelse(pred_female, "Female-Inlier", "Female-Outlier"))
+
+# Combining both datasets for visualization
+combined <- rbind(male_data_labeled, female_data_labeled)
+
+# Applying PCA to reduce dimensionality (from 3 features to 2 principal components)
+pca <- prcomp(combined %>% select(-Group), scale. = TRUE)
+
+# Plot the first two principal components, color-coded by group
+par(xpd = TRUE, mar = c(5, 4, 4, 8))
+plot(pca$x[, 1:2],
+     col = as.factor(combined$Group),
+     pch = ifelse(combined$Group == "Male", 1, 3),
+     xlab = "PC1", ylab = "PC2",
+     main = "One-Class SVM: Male Pattern vs Female Inliers/Outliers")
+legend("bottomright",inset = c(-0.3, 0), legend = levels(as.factor(combined$Group)),
+       col = 1:3, pch = c(1, 3, 3))
+
+```
+
+#### Interpretation:
+- Male (green circles)
+  - These points represent the pattern learned by the one-class SVM.
+  - This forms the “normal” salary structure the model understands.
+
+- Female-Outlier (red plus signs)
+  - These are female employees whose salary–grade–department structure deviates from the male pattern.
+  - A large number of these suggests women are structurally placed differently (lower grade, lower base pay, or different department alignment).
+
+- Female-Inlier (black dots)
+  - These are female employees who match the male salary structure.
+  - A smaller, denser cluster, possibly overlapping with male data, indicates closer parity for this subset.
+  
+# 6. Summarized Interpretations
+
+1. Removing the Gender variable from the SVM model did not reduce prediction accuracy, suggesting that salary level can largely be explained by Department, Grade, and Year.
+2. Despite similar model performance, gender proportions change across salary levels — with fewer women in higher salary bands, indicating structural disparity.
+3. When trained on male salary structures, the one-class SVM identified over 70% of female employees as structurally different, highlighting that many women do not fit the male compensation pattern.
+4. PCA-based visualization shows a clear separation between male data and a large segment of female outliers, reinforcing the pattern of structural pay misalignment.
+5. The insights imply that disparity may not lie in pay within roles, but rather in who gets access to higher-paying roles and grades — a deeper structural concern.
+
+# 7. Recommendations
+Based on the findings, below are the recommendations:
+
+1. Since more men are in higher-paying grades, the organization should look into how roles and promotions are being assigned, to make sure women have equal opportunities.
+2. Use tools like SVM or regular reporting to keep an eye on whether salary patterns between men and women stay fair over time.
+
+\newpage
+## References
+
+1. Montgomery County Government. (2025, April 8). Employee Salaries – 2024 [Dataset]. Data.gov. https://catalog.data.gov/dataset/employee-salaries-2024
+2. Montgomery County Government. (2025). Employee Salaries – 2024: About the data. Montgomery County Open Data Portal. https://data.montgomerycountymd.gov/Human-Resources/Employee-Salaries-2024/2nq6-auk8/about_data
+
+```{r}
+library(knitr)
+purl("Module_4_Technique Practice.Rmd")
+```

@@ -1,0 +1,266 @@
+---
+title: "ALY6040_Project_EDA"
+author: "Ashna Solkar and Yuhong Tao"
+date: "2025-04-20"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+i. Environment Reset Code
+```{r Environment Reset Code}
+rm(list=ls())
+```
+ii. Libraries Used
+```{r Libraries Loaded, echo=TRUE}
+library(readr)
+library(dplyr)
+library(viridis) 
+library(ggplot2) 
+library(corrplot)
+library(forcats)
+```
+iii. Loading Dataset
+```{r Dataset Loaded, echo=TRUE}
+# Loading dataset
+data_2024 <- read_csv("Employee_Salaries_-_2024.csv")
+```
+iv. Loading additional dataset and combining into original data set
+```{r}
+data_2019 <- read_csv("Employee_Salaries_-_2019.csv")
+data_2020 <- read_csv("Employee_Salaries_-_2020.csv")
+data_2021 <- read_csv("Employee_Salaries_-_2021.csv")
+data_2022 <- read_csv("Employee_Salaries_-_2022.csv")
+data_2023 <- read_csv("Employee_Salaries_-_2023.csv")
+
+# Adding new column Year in each dataset
+data_2019 <- mutate(data_2019, Year = 2019)
+data_2020 <- mutate(data_2020, Year = 2020)
+data_2021 <- mutate(data_2021, Year = 2021)
+data_2022 <- mutate(data_2022, Year = 2022)
+data_2023 <- mutate(data_2023, Year = 2023)
+data_2024 <- mutate(data_2024, Year = 2024)
+
+# Changing the column names in all the dataset with standardized names
+column_names <- c("Department", "Department Name", "Division", "Gender", "Base Salary", "Overtime Pay", "Longevity Pay", "Grade", "Year")
+
+data_2019 <- data_2019 %>% setNames(column_names)
+data_2020 <- data_2020 %>% setNames(column_names)
+data_2021 <- data_2021 %>% setNames(column_names)
+data_2022 <- data_2022 %>% setNames(column_names)
+data_2023 <- data_2023 %>% setNames(column_names)
+data_2024 <- data_2024 %>% setNames(column_names)
+
+# Combining the dataset
+data <- rbind(data_2024, data_2019, data_2020, data_2021, data_2022, data_2023)
+```
+1. Data Exploration
+```{r View the Dataset}
+# View the dataset
+View(data)
+```
+1.1. Understanding the Data Structure
+```{r Dataset Structure and Summary}
+# Display internal structure and summary of statistics of the dataset
+glimpse(data)
+summary(data)
+```
+1.2. Identifying Length of unique values in each variable
+```{r Length of Unique Values in Variables}
+# Length of unique values recorded under each variable
+cat("Number of Unique Values in each Variable: \n")
+cat("Department:",length(unique(data$Department)), "\n")
+cat("Department Name:",length(unique(data$`Department Name`)), "\n")
+cat("Division:",length(unique(data$Division)), "\n")
+cat("Gender:",length(unique(data$Gender)), "\n")
+cat("Base Salary:",length(unique(data$`Base Salary`)), "\n")
+cat("Overtime Pay:",length(unique(data$`Overtime Pay`)), "\n")
+cat("Longevity Pay",length(unique(data$`Longevity Pay`)), "\n")
+cat("Grade:",length(unique(data$Grade)), "\n")
+```
+This tells us that Department column records abbreviated values whose full forms can be found in Department.Names.
+Each Department has one or more Division.
+There are only two types of values recorded under Gender.
+Compensation related variables such as Base.Salary, Overtime.Pay, and Longevity.Pay are numeric values hence, more evaluation can be conducted using statistic function.
+The Grade column contains numerous unique values, suggesting potential relationships with other variables in the data set. Grades may vary across Departments and/or Divisions, and their hierarchical levels can potentially be inferred using compensation-related variables.
+
+2. Missing Values & Duplicate Rows
+```{r Missing Values & Duplicate Rows}
+# Considering possible representational missing values by creating a vector called missing_values
+missing_values <- c("", "NA", "NULL", "-99", "-999")
+
+# Replacing every possible missing values by NA
+data[data %in% missing_values] <- NA
+
+# Counting all the NA's in each variable
+cat("Missing values per Column:\n")
+colSums(is.na(data))
+
+# Counting all Duplicate rows
+cat("Number of Duplicate Rows:", sum(duplicated(data)), "\n")
+```
+3. Data Cleaning
+
+3.1. Handling Duplicate Rows and Missing Values
+```{r Handling Duplicate Rows}
+# Removing Duplicate Rows
+data_clean <- data %>% distinct()
+
+# Rechecking missing values in Grade column affected
+sum(is.na(data_clean$Grade))
+```
+This means, 22 records containing missing values in Grade variable were duplicate. (61 minus 39). Hence, investigating the missing rows further:
+```{r Filtering out Data with Missing Values}
+# Filtering data with missing values in Grade column and storing in object called missing_grade_data
+missing_grade_data <- data_clean %>% filter(is.na(Grade))
+missing_grade_data
+```
+Observations:
+Of the 39 rows with missing Grade, have no Overtime Pay and Longevity Pay, except for 2 row with Longevity Pay. Moreover it spans across various departments like CEX, ZAH, SHF, OLO, CCL(majority), OAG, and HHS.
+Base Salary is not zero.
+Interpretation & Decision:
+Some entries may represent non-graded or temporary roles, but they still hold analytical value. Therefore, missing values in the Grade column will be retained and replaced with "Unknown" to maintain clarity and preserve these records for potential further analysis. Additionally, missing values in Overtime Pay and Longevity Pay will be replaced with 0, interpreting the blanks as instances where no payment was made in these components.
+
+```{r Replacing NA with Unknown}
+# Replacing NA values in Grade variable with Unknown
+data_clean$Grade[is.na(data_clean$Grade)] <- "Unknown"
+data_clean$`Overtime Pay`[is.na(data_clean$`Overtime Pay`)] <- 0.00
+data_clean$`Longevity Pay`[is.na(data_clean$`Longevity Pay`)] <- 0.00
+
+# Verifying changes
+data_clean[data_clean %in% missing_values] <- NA
+colSums(is.na(data_clean))
+```
+3.2. Converting Categorical Values to Factors
+
+The variables Department, Department Name, Division, Gender, and Grade are categorical in nature and should be converted to factors for accurate analysis.
+
+Department, Department Name, Division, Gender are nominal categorical variables. 
+Grade is an ordinal categorical variable, since grades are generally represented as hierarchical levels. However, further analysis is required to understand the ordering based on compensation or role structure.
+```{r Converting Variables to Nominal}
+# Converting variables to nominal
+data_clean <- data_clean %>%
+  mutate(
+    Department = factor(Department),
+    `Department Name` = factor(`Department Name`),
+    Division = factor(Division),
+    Gender = factor(Gender)
+  )
+```
+```{r Summary of Cleaned Dataset}
+# Summary statistics of cleaned dataset
+summary(data_clean)
+```
+4. Outlier Detection
+
+```{r Outlier Inspection: Base Salary by Gender}
+# Outlier Inspection using Box plot for Base Salary by Gender
+ggplot(data_clean, aes(x = Gender, y = `Base Salary`), fill = Gender) +
+  geom_boxplot(fill = "lightblue", color = "black", alpha = 0.5, notch = TRUE) +
+  theme_classic() +
+   labs(title = "Outlier Inspection: Base Salary by Gender",
+       x = "Gender",
+       y = "Base Salary (in USD)") +
+  scale_y_continuous(breaks = seq(0,307000,50000))
+
+```
+```{r Distribution of Base Salaries}
+# (1) Histogram of Base Salary
+ggplot(data_clean, aes(x = `Base Salary`)) +
+  geom_histogram(binwidth = 5000, fill = "slategray2", color = "slategrey", alpha = 0.7) +
+  labs(title = "Distribution of Base Salaries", x = "Base Salary (in USD)", y = "Count") +
+  scale_x_continuous(breaks = seq(0,307000,50000)) +
+  scale_y_continuous(breaks = seq(0,5000,500)) +
+  theme_classic()
+```
+```{r Distribution of Employee Across Departments}
+# (2) Bar plot of Departments
+ggplot(data_clean, aes(x = fct_infreq(Department))) +
+  geom_bar(color= "gray2", fill= "gray") +
+  labs(title = "Distribution of Employee Across Departments", x = "Department", y = "Count")+
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(breaks = seq(0,12000,1000))
+```
+```{r Base Salary by Department}
+# (3) Boxplot of Annual Salary by Department
+ggplot(data_clean, aes(x = Department, y = `Base Salary`)) +
+  geom_boxplot(fill = "orange", color = "black", alpha = 0.8) +
+  labs(title = "Base Salary by Department", x = "Department", y = "Base Salary (in USD)") +
+  scale_y_continuous(breaks = seq(0,307000,50000)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The summary statistics of the numerical variables above appear to be skewed, likely due to the presence of outliers. Identifying these outliers within each variable is important for accurate interpretation. However, analyzing the data as a whole may exaggerate this skewness, as it aggregates compensation information across 44 different departments. Therefore, it's essential to first identify the top departments and then conduct further analysis within those segments for more meaningful insights.
+```{r Five-Number Summary of Base Salary}
+# Five-number summary for Base Salary grouped by Department
+dept_base_salary <- data_clean %>%
+  group_by(Department) %>%
+  summarise("Employee Count" = n(),
+            Min = min(`Base Salary`),
+            Q1 = quantile(`Base Salary`, 0.25),
+            Median = median(`Base Salary`),
+            Q3 = quantile(`Base Salary`, 0.75),
+            Max = max(`Base Salary`)) %>%
+  mutate(IQR = Q3 - Q1,
+         "Lower Bound" = Q1 - 1.5*IQR,
+         "Upper Bound" = Q3 + 1.5* IQR) %>%
+  # Focusing on departments with employee count more than 2000 
+  arrange(desc(`Employee Count`)) %>% 
+  filter(`Employee Count` >= 2000)
+
+
+dept_base_salary
+```
+```{r Five-Number Summary of Overtime Pay}
+# Overtime Pay grouped Department wise and arranged is descending order
+dept_overtime_pay <- data_clean %>%
+  group_by(Department) %>%
+  summarise("Employee Count" = n(),
+            Min = min(`Overtime Pay`),
+            Q1 = quantile(`Overtime Pay`, 0.25),
+            Median = median(`Overtime Pay`),
+            Q3 = quantile(`Overtime Pay`, 0.75),
+            Max = max(`Overtime Pay`)) %>%
+  mutate(IQR = Q3 - Q1,
+         "Lower Bound" = Q1 - 1.5*IQR,
+         "Upper Bound" = Q3 + 1.5* IQR) %>%
+  # Focusing on departments with employee count more than 2000 
+  arrange(desc(`Employee Count`)) %>% 
+  filter(`Employee Count` >= 2000)
+
+dept_overtime_pay
+```
+```{r Five-Number Summary of Longevity Pay}
+# Longevity Pay grouped Department wise and arranged is descending order
+dept_longevity_pay <- data_clean %>%
+  group_by(Department) %>%
+  summarise("Employee Count" = n(),
+            Min = min(`Longevity Pay`),
+            Q1 = quantile(`Longevity Pay`, 0.25),
+            Median = median(`Longevity Pay`),
+            Q3 = quantile(`Longevity Pay`, 0.75),
+            Max = max(`Longevity Pay`)) %>%
+  mutate(IQR = Q3 - Q1,
+         "Lower Bound" = Q1 - 1.5*IQR,
+         "Upper Bound" = Q3 + 1.5* IQR) %>%
+  # Focusing on departments with employee count more than 2000 
+  arrange(desc(`Employee Count`)) %>% 
+  filter(`Employee Count` >= 2000)
+
+dept_longevity_pay
+```
+```{r Correlation Matrix}
+# (4) Correlation heatmap for numeric features
+num_data <- select_if(data_clean, is.numeric)
+corr_matrix <- cor(num_data, use = "complete.obs")
+corr_matrix
+corrplot(corr_matrix, method = "color", tl.cex = 0.7)
+```
+5. Saving the data_clean as csv file.
+```{r}
+# Saving data_clean
+write_csv(data_clean, "Employee_Salaries_2019_to_2024.csv")
+```

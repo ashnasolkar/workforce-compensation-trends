@@ -1,0 +1,313 @@
+---
+title: "Module_3_Technique Practice"
+author: "Ashna Solkar"
+date: "2025-04-26"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+i. Environment Reset Code
+```{r}
+rm(list = ls())
+```
+ii. Loading Libraries
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2) 
+library(factoextra) 
+library(cluster)
+```
+iii. Loading Data set
+```{r}
+data <- read_csv("Employee_Salaries_2019_to_2024.csv")
+```
+
+```{r}
+# Structure and Summary of the dataset
+str(data)
+summary(data)
+```
+
+```{r}
+# Checking parsing problems
+problems(data)
+```
+The output returns nothing, hence its safe to state that file is clean.
+
+1. Analyzing Grade variable
+```{r}
+# Replacing "NULL" with "Unknown" in the Grade column
+data$Grade <- ifelse(data$Grade == "NULL", "Unknown", data$Grade)
+
+# Understanding the Grades list
+grade_list <- sort(unique(data$Grade))
+grade_list
+
+# Grouping Salaries by Grade Year-wise (Assuming the Government has centralized HR)
+base_pay_grade <-  data %>%
+  group_by(Year, Department, Grade) %>%
+  summarise(Average = mean(`Base Salary`), Median = median(`Base Salary`), Min = min(`Base Salary`), Max = max(`Base Salary`), Mode = names(which.max(table(`Base Salary`))), .groups = "drop") %>%
+  arrange(desc(Year), desc(Median))
+base_pay_grade
+
+# Visualizing to reveal the hierarchy of grades
+ggplot(base_pay_grade, aes(x= Grade, y = Median)) +
+  geom_point(color="cornflowerblue", alpha = 0.8)+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, face = "bold")) +
+  scale_y_continuous(breaks= seq(0,307000,50000)) +
+  labs(title = "Visualization to Identify Hierarchical Pattern of Grades",
+       subtitle = "Assumption: Montgomery County Government has Centralised HR",
+       x = "Grade",
+       y = "Median Salary (in USD)",
+       caption = "Sources:\n Montgomery County Government HR Regulations (https://www.montgomerycountymd.gov/HR/Resources/files/regulation/MCPR01AE.pdf);\n Pay Grade and Salary Distribution (https://www.montgomerycountymd.gov/HR/Resources/Files/Classification/Compensation%20Documents/FY25/PMR%202024%20v2%2005162024.pdf)")
+
+```
+
+The scatterplot shows very clearly, stepwise increase in Median Salary by Grade.
+Moreover, with the help of sources sited in the visual:
+Montgomery HR Regulations: Defines Grades as standardized level assigned based on classification.
+Pay Grade and Salary Distribution: Lists Pay Grades explicitly.
+
+According to the Montgomery County Government HR Regulations (Section II, Classification Process, Page 6), "A grade designates a salary range on a County Government salary schedule which applies to classes of positions. Although different with respect to kinds of work, classes assigned to the same grade are considered equivalent in value as determined by their evaluations under QES III." This supports the conclusion that while job duties and work types may vary across departments, the grade structure serves as a standardized framework controlling compensation across the organization. Therefore, analyzing compensation patterns at the grade level — irrespective of department — is a justified approach for understanding salary distributions and employee classification within the County Government.
+
+Therefore, we can say that Montgomery County Government likely uses a centralized HR system for salary schedules, where Grades control pay levels across departments, even if work types vary.
+
+```{r}
+# Untraceable Grades
+grades_wise <- data %>%
+  group_by(Grade, Department) %>%
+  summarise("Number_of_Employees"=n(), .groups = "drop") %>%
+  arrange(Department, Grade, desc(Number_of_Employees))
+
+grades_not_found <- filter(grades_wise, Grade %in% c("B2P", "F2P", "F3P", "MD2", "MD3", "MD4", "P4P", "T1P"))
+
+```
+During the analysis, eight Grades (B2P, F2P, F3P, MD2, MD3, MD4, P4P, T1P) were identified that could not be traced to the official Montgomery County Government salary schedules or compensation documents. These discrepancies may result from typographical errors, internally designated grades not disclosed publicly, or classifications specific to certain specialized departments. Accordingly, while the broader analysis assumes a centralized HR structure based on available documentation, these Grades have been flagged for separate review, and caution is advised when interpreting results involving these cases.
+
+2. Preparing for Clustering
+
+2.1. Clustering Year-wise
+
+Salaries naturally increase each year due to inflation, promotions, or appraisals. If data from multiple years (2019 to 2024) were combined without separation, clustering would distinguish employees by year instead of identifying meaningful patterns in salary structure. Therefore, analyzing each year independently will provide more accurate and comparable basis for discovering standardized grade groupings across employees.
+
+```{r}
+# Filtering data for 2024
+data_2024 <- data %>%
+  filter(Year == 2024)
+```
+
+2.2. Removing Categorical Columns 
+
+Selecting purely numeric variables because k-means clustering uses Euclidean distance. In this case, compensation components such as Base Salary, Overtime Pay, and Longevity Pay are used.
+```{r}
+# Removing categorical columns
+cluster_data <- data_2024[,5:7]
+```
+
+2.3. Scaling the Data
+
+scale() standardizes (z-score) each column in 'data' by subtracting the mean and dividing the resultant with standard deviation. z=(x-mean)/std deviation.
+This is an important step before performing clustering because clustering algorithms are sensitive to scale. If one variable has larger numbers, it will dominate the clustering process.
+
+Scaling ensures all features contribute equally.
+
+```{r}
+# Scaling the data
+data_scaled <- scale(cluster_data)
+```
+
+2.4. Elbow Method
+
+Using elbow method to determine the optimal numbers of clusters (k). The fviz_nbclust() is a function from factoextra package, it visualizes the optimal number of clusters by applying WSS metric.
+```{r}
+# Using elbow method
+fviz_nbclust(data_scaled, kmeans, method = "wss") +
+  labs(subtitle = "Elbow Method for Choosing k")
+
+```
+
+In the above elbow plot as k increases, WSS decreases because clusters get smaller and more compact.
+Around k =3 or 4, the rate of decrease starts to flatten out. Hence, the optimal number of clusters is likely 3 or 4 because WSS drops sharply from k= 1 to k = 3. After k = 4, adding more clusters does not significantly improve the compactness.
+
+Choosing k = 3 or 4 will keep the model simple, provide meaningful segmentation, and avoid overfitting by splitting too much.
+
+Since I wish to focus on more granularity, that is finer differences between compensation structure, choosing k = 4.
+
+2.4. Applying & Visualizing k-means Clustering with 4 Clusters
+
+The following command performs k-means clustering on the data_scaled dataset by creating 3 clusters and running the k-means 25 times with different random starting points, and choose the best one (lowest total WWS). nstart improves stability and quality of the results.
+
+2.5. Applying and Visualizing k-means Cluster
+```{r}
+# Applying k-means clustering with 4 clusters
+set.seed(123)
+km <- kmeans(data_scaled, centers = 4, nstart = 25)
+
+# Visualize the clusters
+fviz_cluster(km, data = data_scaled)
+```
+
+Using fviz_cluster() from factoextra package we have created a 2D plot that visualizes how data has been grouped into clusters by the k-means algorithm.
+
+Data projection (Dim1 and Dim2) are the first two principal components (PCA dimensions). They capture the most variance (information) in the scaled data. This makes it possible to visually separate the clusters in 2D, even when original data had 8 variables. In this case, Dim1 explains 45.1% and Dim2 explains 32%, together they explain 77% of the variation.
+
+The cluster visualization shows four broadly separable clusters, although some degree of overlap exists — which is natural given salary and compensation variations across job roles. Cluster 2 is notably dense and compact, indicating a group of employees with very similar compensation structures. Cluster 3 appears more spread out, suggesting a niche segment with greater variability in pay, potentially due to specialized roles or variations in overtime and longevity pay. Clusters 1 and 4 demonstrate broader and narrower dispersion respectively, corresponding to potentially higher-paying or more specialized employee groups. Overall, the clustering structure captures meaningful groupings in the employee salary distribution.
+```{r}
+# Number of employees in each group
+km$size
+```
+
+Cluster 1 (red) has 2225 employees
+Cluster 2 (green) has 5529 employees
+Cluster 3 (blue) has 648 employees
+Cluster 4 (purple) has 1330 employees
+```{r}
+# Adding cluster labels back to data_2024
+data_2024$Cluster <- factor(km$cluster)
+head(data_2024)
+```
+
+Using clustering techniques (K-means), employees were successfully grouped into distinct compensation profiles based on Base Salary, Longevity Pay, and Departmental factors. The resulting clusters demonstrated meaningful separation of compensation patterns, confirming that clustering can be an effective method for understanding compensation structures in the workforce.
+
+Recommendations: 
+1. New hires could be assigned to the most likely compensation cluster based on initial attributes such as Department, Grade, and Base Salary. This will help HR plan budgets and pay equity initiatives.
+2. Employees who do not fit into any clusters could be flagged for irregularities in pay. This will be useful for audits or traceback negotiation exceptions, or for pay parity analysis.
+3. Performing clustering year-over-year to see if compensation profiles are shifting.
+
+
+
+```{r}
+data_2024 %>% group_by(Cluster) %>%
+  summarise(
+    Mean_Salary = mean(`Base Salary`),
+    Median_Salary = median(`Base Salary`),
+    Avg_Overtime = mean(`Overtime Pay`),
+    Avg_Longevity = mean(`Longevity Pay`)
+  )
+
+```
+
+```{r}
+# Distribution of Base Salary Across Clusters
+ggplot(data_2024, aes(x = Cluster, y = `Base Salary`)) +
+  geom_boxplot(fill = "lightblue") +
+  theme_minimal() +
+  labs(title = "Base Salary by Cluster")
+
+```
+
+The box plots represents:
+ - Cluster 1 has a higher salary range with more spread-out salaries, suggesting it includes a wide variety of senior roles.
+
+ - Cluster 2 is more compact with lower salaries, likely representing early-career positions.
+
+ - Clusters 3 and 4 show a moderate spread of salaries, which is typical for roles requiring several years of experience (mid to senior level).
+
+Based on the salary distributions across clusters, we hypothesize that Cluster 1 represents individuals in senior/executive-level roles, as evidenced by the highest mean and median salaries. Cluster 2, with its lower mean and median salaries, is likely to correspond to entry-level to associate roles. Clusters 3 and 4, with intermediate salary ranges, are hypothesized to reflect mid-senior to senior-level roles, where individuals typically have several years of experience.
+
+#### Verifying the trend across Top Departments
+
+Based on earlier EDA findings, POL, HHS, FRS, and DOT are top 4 Departments with highest employee count, making it strong candidate for interpreting the meaning clusters.
+```{r}
+# Distribution of Clusters across top Departments (with highest employees)
+
+dept_wise_filtered <- data_2024 %>%
+  filter(Department %in% c("POL", "HHS", "FRS", "DOT"))
+
+dept_wise_filtered
+```
+```{r}
+table(dept_wise_filtered$Department, dept_wise_filtered$Cluster)
+
+```
+```{r}
+ggplot(dept_wise_filtered, aes(x = Cluster, y = `Base Salary`)) +
+  geom_boxplot(fill = "lightblue") +
+  facet_wrap(~Department) +
+  theme_minimal() +
+  labs(title = "Base Salary by Cluster")
+```
+
+The department-wise breakdown supports and strengthens our hypothesis. Looking at the department distribution across clusters, we can observe that:
+
+ - Cluster 1 includes larger numbers from departments typically associated with senior/executive-level roles. This aligns with the higher salaries and suggests that positions in Cluster 1 are more senior in nature.
+
+ - Cluster 2 contains a significant number of participants from departments with more entry-level or associate roles, which fits with its lower salary range.
+
+ - Clusters 3 and 4 show a more mixed distribution, with some departments represented in both clusters, indicating these clusters likely capture mid-level to senior-level roles that may vary in responsibilities across departments.
+ 
+##### Understanding the Clusters with Gender
+```{r}
+ggplot(data_2024, aes(x= Cluster, y= `Base Salary`, fill = Gender))+
+  geom_violin()
+```
+The violin plots indicate that all clusters contain both male and female participants. However, opportunities in Cluster 1 and Cluster 2 appear more prevalent, as seen by the wider width (indicating higher density of data points) for males in these clusters compared to Cluster 3 and Cluster 4. Howeever gender distribution does not provide direct evidence for job level.
+
+Overall it seems reasonable to hypothesize the following breakdown of the clusters:
+
+Cluster 1: The mean salary and median salary in this cluster are the highest among all the clusters. This could indicate that Cluster 1 includes individuals in senior/executive roles such as Director or higher-level positions, where compensation is generally higher.
+
+Cluster 2: The mean salary and median salary in this cluster are the lowest, which suggests that it likely represents entry-level to associate-level roles where salaries are typically on the lower end of the spectrum.
+
+Cluster 3 & 4: The salaries for these clusters are relatively similar, but they fall in between the salary ranges seen in Cluster 1 and Cluster 2. These clusters likely represent individuals in the associate to mid-senior level or senior-level roles. The salaries here are higher than Cluster 2 but lower than Cluster 1, making them suitable for roles that require moderate to advanced experience. 
+
+```{r}
+grade_basesalary_cluster <- data_2024 %>%
+  group_by(Cluster, Grade) %>%
+  summarise(Avg_BaseSalary = mean(`Base Salary`), Median = median(`Base Salary`), .groups="drop")
+
+```
+### Hypothesis Testing for Salary Differences.
+
+To formally test whether the salary differences between clusters are statistically significant, we choose Kruskal-Wallis Test since, the box plots of base salary for each clusters are skewed (not normally distributed).
+
+Null Hypothesis: There is no significant difference in the median Base Salary between the clusters.
+H0: Median(Base Salary in Cluster 1) = Median(Base Salary in Cluster 2) = Median(Base Salary in Cluster 3) = Median(Base Salary in Cluster 4)
+Alternative Hypothesis: At least one cluster has a significantly different median Base Salary from the others.
+H1: At least one cluster has a different median Base Salary
+
+Chosen significance level is 0.05.
+
+Applying a log transformation to the salary data to reduce skewness and make the distributions more normal. This can help stabilize the variance across clusters and make the comparison of salaries more valid for parametric tests.
+```{r}
+alpha = 0.05
+
+# Log Transformation
+data_2024$log_salary <- log(data_2024$`Base Salary`)
+
+# Kruskal-Wallis Test
+kruskal.test(log_salary ~ Cluster, data = data_2024)
+```
+Since the p-value in less than alpha (0.05), we reject the null hypothesis. This means that there is a statistically signifcant difference in the median Base Salary across the clusters.
+
+### Wilcoxon Rank Sum Tests
+
+After rejecting the null hypothesis in the Kruskal-Wallis test, we used the pairwise.wilcox.test() function in R to perform pairwise Wilcoxon rank sum tests. This will allow us to compare each pair of clusters to determine where the significant differences lie.
+
+```{r}
+wilcox_results <- pairwise.wilcox.test(data_2024$log_salary, data_2024$Cluster, p.adjust.method = "BH") # Benjamini-Hochberg (BH) method is used to adjust for multiple comparisons.
+
+wilcox_results
+```
+Given that all pairwise comparisons result in p-values < 2e-16, we can conclude that there are significant differences in the median salaries between all clusters. This supports the idea that the salary distributions across the clusters are not the same, and the clusters represent distinct salary groups.
+
+Therefore, assigning nomenclature to these groups based on salary ranges and the corresponding job levels is reasonable.
+
+Based on our interpretation:
+
+Cluster 1: It has the highest mean and median salaries, so it’s reasonable to classify it as representing senior/executive roles.
+
+Cluster 2: It has the lowest salaries, fitting the description of entry-level or associate roles.
+
+Clusters 3 and 4: With salaries between Cluster 1 and Cluster 2, they likely represent individuals with moderate to advanced experience, which fits the description of associate to senior-level roles.
+
+
+While the statistical tests indicate significant differences, it’s important to note that salary alone doesn’t fully define job levels. Ideally, this nomenclature should be validated using additional contextual data (e.g., job titles, years of experience, responsibilities) to ensure that salary correlates with the expected roles in the industry.
+
+```{r}
+library(knitr)
+purl("Module 3 Technique Practice.Rmd")
+```
