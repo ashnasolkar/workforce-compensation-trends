@@ -18,14 +18,14 @@ Analysis of public employee compensation data from Montgomery County Government 
 
 ## My Contributions
 
-### 1. Exploratory Data Analysis (`ALY6040_Project_EDA.Rmd`)
+### 1. Exploratory Data Analysis (`exploratory_data_analysis.Rmd`)
 - Removed 3,636 duplicate records and handled missing values
 - Conducted outlier detection using boxplots for Base Salary by Gender
 - Analyzed salary distributions across 44 departments
 - Produced five-number summaries and IQR-based outlier bounds for top departments (POL, HHS, FRS, DOT)
 - Built correlation matrix using `corrplot` for numeric salary components
 
-### 2. K-Means Clustering (`Module_3_Technique_Practice.Rmd`)
+### 2. K-Means Clustering (`kmeans_clustering.Rmd`)
 - Filtered data to 2024 to avoid year-on-year salary drift
 - Standardized numeric features (Base Salary, Overtime Pay, Longevity Pay) using z-scores
 - Applied Elbow Method via `fviz_nbclust()` to determine optimal k = 4
@@ -33,7 +33,7 @@ Analysis of public employee compensation data from Montgomery County Government 
 - Profiled 4 clusters by mean/median salary — from entry-level (Cluster 2) to senior/executive (Cluster 1)
 - Validated cluster separation using **Kruskal-Wallis test** (p < 0.05) and pairwise **Wilcoxon rank-sum tests**
 
-### 3. SVM Analysis — Gender & Salary (`Module_4_Technique_Practice.Rmd`)
+### 3. SVM Analysis — Gender & Salary (`svm_analysis.Rmd`)
 - Converted Base Salary into Low / Medium / High tiers using tertiles
 - Built SVM classifier (RBF kernel) on 70/30 stratified split to predict salary level
 - Compared models with and without Gender — removing Gender did not affect accuracy
